@@ -130,6 +130,8 @@ class Navigator
         // Calculation
         // ======================================================
 
+        $doc = null;
+
         // Get the current document id
         $currentId = $this->modx->resource->get('id');
 
@@ -168,12 +170,14 @@ class Navigator
                 return '<!--navigator:4-->';
             }
 
-            if ( $this->IsStopId( $id ) )
+            $doc = $this->modx->getObject(modResource::class, $id);
+
+            if ( $this->IsStopId( $id, $doc ) )
             {
                 return '';
             }
 
-            if ( $this->IsSkipId( $id ) )
+            if ( $this->IsSkipId( $id, $doc ) )
             {
                 $currentId = $id;
             }
@@ -183,12 +187,11 @@ class Navigator
             }
         }
       
-
         // Return the parent's sibling's id
-        return $this->GetOutput( $id );      
+        return $this->GetOutput( $id, $doc );      
     }
 
-    private function GetOutput( $id )
+    private function GetOutput( $id, $doc )
     {
         // Creates the output in the given format.
 
@@ -197,9 +200,7 @@ class Navigator
         {
              return '<!--navigator:6-->';
         }
-
-        $doc = $this->modx->getObject(modResource::class, $id);
-        if (!doc){
+        if (!$doc){
             return '<!--navigator:7-->';
         }
         $fields = $doc->toArray();
@@ -208,13 +209,12 @@ class Navigator
         return $this->modx->getChunk($this->templateSource, $fields);
     }
 
-   private function IsSkipId( $id )
+   private function IsSkipId( $id, $doc )
    {
         if ( $id < 0 )
         {
             return TRUE;
         }
-        $doc = $this->modx->getObject(modResource::class, $id);
         if (!$doc)
         {
             return TRUE;
@@ -235,7 +235,7 @@ class Navigator
         
     }
 
-    private function IsStopId( $id )
+    private function IsStopId( $id, $doc )
     {
         if ( $id < 0 )
         {
@@ -245,7 +245,6 @@ class Navigator
         {
             return TRUE;
         }
-        $doc = $this->modx->getObject(modResource::class, $id);
         if (!$doc)
         {
             return TRUE;
