@@ -5,7 +5,7 @@ author: PMS
 version: 1.0.0-alpha
 snippets:
     - name: Navigator
-      description: This snippet is designed to aid navigation, by providing information about a related page.
+      description: Enables navigation to related pages (prev, next, up).
 build:
   requires:
       modx: '>=3.0.0-alpha'

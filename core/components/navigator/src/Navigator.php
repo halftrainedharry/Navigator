@@ -9,6 +9,10 @@
 // Licence: GPL GNU - Public
 // Credit: I used some code from the Wayfinder snippet when figuring out how to do templating.
 
+namespace Navigator;
+
+use MODX\Revolution\modResource;
+
 class Navigator
 {
 
@@ -33,12 +37,9 @@ class Navigator
     // Derived parameters
     private $stopIdArray;
     private $offIdArray;
-    private $template;
 
-
-    public function __construct( $params )
+    public function __construct(&$modx, $params)
     {
-        global $modx;
         $this->modx = &$modx;
 
         // Set allowed values
@@ -47,9 +48,9 @@ class Navigator
         $this->unpublishedActionVals = array('skip', 'stop', 'link');
         $this->notInMenuActionVals = array('skip', 'stop', 'link');
         $this->placeHolderFieldVals = array('nav.rel');
-        $this->rel = 'up';
 
         // Set default values
+        $this->rel = 'up';
         $this->stopIds = '';
         $this->offIds = '';
         $this->transcend = 1;
@@ -130,7 +131,7 @@ class Navigator
         // ======================================================
 
         // Get the current document id
-        $currentId = $this->modx->documentIdentifier;
+        $currentId = $this->modx->resource->get('id');
 
         // If the snippet has been switched off for this document, don't display it
         if ( in_array( $currentId, $this->offIdArray ) )
@@ -138,24 +139,19 @@ class Navigator
             return '';
         }
       
-        // Get the content
-        $this->template = $this->GetTemplate( $this->templateSource );
-        if ( $this->template === FALSE )
+        // Check if template is defined
+        if ( empty($this->templateSource) )
         {
-            // Could create a template based on type here...
             return '<!--navigator:1-->';
         }      
 
         while ( true )
         {
 
-            // Get the parent document id
-            $parentId = $this->GetParentId( $currentId );
-
             switch ( $this->rel )
             {
             case 'up':
-                $id = $parentId;
+                $id = $this->GetParentId( $currentId );
                 break;
             case 'prev':
                 $id = $this->GetPreviousDocId( $currentId );      
@@ -192,77 +188,6 @@ class Navigator
         return $this->GetOutput( $id );      
     }
 
-    private function GetTemplate( $source )
-    {
-        // based on a version in Wayfinder 2.0... which was...
-        // based on version by Doze at http://modxcms.com/forums/index.php/topic,5344.msg41096.html#msg41096
-        $template = '';
-        if ( $this->modx->getChunk( $source ) != '')
-        {
-            $template = $this->modx->getChunk( $source );
-        }
-        else if ( substr($tpl, 0, 6) == '@FILE:' )
-        {
-            $template = $this->GetFileContents( substr( $source, 6 ) );
-        }
-        else if ( substr($tpl, 0, 6) == '@CODE:' )
-        {
-            $template = substr( $source, 6 );
-        }
-        else
-        {
-            $template = FALSE;
-        }
-        return $template;
-    }
-
-	private function GetFileContents( $filename )
-    {
-		// Function written at http://www.nutt.net/2006/07/08/file_get_contents-function-for-php-4/#more-210
-		// Returns the contents of file name passed
-		if ( ! function_exists( 'file_get_contents' ) )
-        {
-			$fhandle = fopen( $filename, 'r' );
-			$fcontents = fread( $fhandle, filesize( $filename ) );
-			fclose( $fhandle );
-		}
-        else
-        {
-			$fcontents = file_get_contents( $filename );
-		}
-		return $fcontents;
-	}
-
-    private function SortDocs($a, $b)
-    {
-        if ( $a['menuindex'] == $b['menuindex'] )
-        {
-            return 0;
-        }
-        return ($a['menuindex'] > $b['menuindex']) ? 1 : -1;
-    }
-
-    private function GetPlaceHolderFieldsArray( $tpl )
-    {
-        // Extract the place holders from the document...
-        preg_match_all('~\[\+(.*?)\+\]~', $tpl, $matches);
-        return array_unique( $matches[1] );
-    }
-
-    private function GetTVArray()
-    {
-        // Gets an array of all template variables
-        $table = $this->modx->getFullTableName('site_tmplvars');
-        $tvs = $this->modx->db->select('name', $table);
-        // TODO: make it so that it only pulls those that apply to the current template
-        $dbfields = array();
-        while ( $dbfield = $this->modx->db->getRow( $tvs ) )
-        {
-            $dbfields[] = $dbfield['name'];
-        }
-        return $dbfields;
-    }
-
     private function GetOutput( $id )
     {
         // Creates the output in the given format.
@@ -272,104 +197,15 @@ class Navigator
         {
              return '<!--navigator:6-->';
         }
-        
-        $placeHolderFieldsArray = $this->GetPlaceHolderFieldsArray( $this->template );
 
-        // Handle any navigator placeholders
-        $nlPlaceHoldersArray = array();
-        $nlPlaceHolderValuesArray = array();
-        foreach ( $placeHolderFieldsArray as $item => $field )
-        {
-            if ( in_array( $field, $this->placeHolderFieldVals ) )
-            {
-                $nlPlaceHoldersArray[] = '[+' . $field . '+]';
-                // $nlPlaceHolderFieldsArray[] = $field;
-                // Get the values...
-                switch ( $field )
-                {
-                case 'nav.rel':
-                    $nlPlaceHolderValuesArray[] = $this->rel;
-                    break;
-                default:
-                    return '<!--navigator:7-->';
-                }
-                // Remove this field from the placeHolderFieldsArray
-                unset( $placeHolderFieldsArray[$item] );
-            }
+        $doc = $this->modx->getObject(modResource::class, $id);
+        if (!doc){
+            return '<!--navigator:7-->';
         }
+        $fields = $doc->toArray();
+        $fields['nav.rel'] = $this->rel;
 
-        $tvArray = $this->GetTVArray();
-        // return htmlspecialchars( print_r( $tvArray, true ) );
-
-        $tvPlaceHoldersArray = array();
-        $tvPlaceHolderFieldsArray = array();
-        foreach ( $placeHolderFieldsArray as $item => $field )
-        {
-            if ( in_array( $field, $tvArray ) )
-            {
-                $tvPlaceHoldersArray[] = '[+' . $field . '+]';
-                $tvPlaceHolderFieldsArray[] = $field;
-                // Remove this field from the placeHolderFieldsArray
-                unset( $placeHolderFieldsArray[$item] );
-            }
-        }
-        // return htmlspecialchars( print_r( $tvPlaceHolderFieldsArray, true ) );
-
-        // Template variables
-        $tvPlaceHolderValuesArray = array();
-        if ( count( $tvPlaceHoldersArray ) > 0 )
-        {
-            $tvPlaceHolderValuesArray = array_values(
-                $this->modx->getTemplateVarOutput(
-                    $tvPlaceHolderFieldsArray
-                    , $id
-                    )
-                );
-        }
-            
-        // return htmlspecialchars( print_r( $tvPlaceHolderValuesArray, true ) );
-
-        $docPlaceHoldersArray = array();
-        $docPlaceHolderFieldsArray = array();
-        foreach ( $placeHolderFieldsArray as $item => $field )
-        {
-            // if ( in_array( $field, $tvArray ) )
-            // {
-                $docPlaceHoldersArray[] = '[+' . $field . '+]';
-                $docPlaceHolderFieldsArray[] = $field;
-                // Remove this field from the placeHolderFieldsArray
-                // unset( $placeHolderFieldsArray[$item] );
-            // }
-        }
-        // return htmlspecialchars( print_r( $tvPlaceHolderFieldsArray, true ) );
-
-        // Get the data....
-        // Template variables
-        $docPlaceHolderValuesArray = array();
-        if ( count( $docPlaceHolderFieldsArray ) > 0 )
-        {
-            $docPlaceHolderValuesArray = array_values(
-                $this->modx->getDocument(
-                    $id
-                    , implode(',',$docPlaceHolderFieldsArray)
-                    )
-                );
-        }
-
-        return str_replace(
-            array_merge(
-                $nlPlaceHoldersArray
-                , $tvPlaceHoldersArray
-                , $docPlaceHoldersArray
-                )
-            , array_merge(
-                $nlPlaceHolderValuesArray
-                , $tvPlaceHolderValuesArray
-                , $docPlaceHolderValuesArray
-                )
-            , $this->template
-            );
-      
+        return $this->modx->getChunk($this->templateSource, $fields);
     }
 
    private function IsSkipId( $id )
@@ -378,20 +214,20 @@ class Navigator
         {
             return TRUE;
         }
-        $doc = $this->modx->getDocument( $id, 'type,published,hidemenu' );
-        if ( !is_array( $doc ) )
+        $doc = $this->modx->getObject(modResource::class, $id);
+        if (!$doc)
         {
             return TRUE;
         }
-        if ( $this->weblinkAction == 'skip' && $doc['type'] == 'reference')
+        if ( $this->weblinkAction == 'skip' && ($doc->get('type') == 'reference' || $doc->get('class_key') == 'MODX\\Revolution\\modWebLink'))
         {
             return TRUE;
         }
-        if ( $this->unpublishedAction == 'skip' && ! $doc['published'])
+        if ( $this->unpublishedAction == 'skip' && ! $doc->get('published'))
         {
             return TRUE;
         }
-        if ( $this->notInMenuAction == 'skip' && $doc['hidemenu'] )
+        if ( $this->notInMenuAction == 'skip' && $doc->get('hidemenu') )
         {
             return TRUE;
         }
@@ -409,20 +245,20 @@ class Navigator
         {
             return TRUE;
         }
-        $doc = $this->modx->getDocument( $id, 'type,published,hidemenu' );
-        if ( !is_array( $doc ) )
+        $doc = $this->modx->getObject(modResource::class, $id);
+        if (!$doc)
         {
             return TRUE;
         }
-        if ( $this->weblinkAction == 'stop' && $doc['type'] == 'reference')
+        if ( $this->weblinkAction == 'stop' && ($doc->get('type') == 'reference' || $doc->get('class_key') == 'MODX\\Revolution\\modWebLink'))
         {
             return TRUE;
         }
-        if ( $this->unpublishedAction == 'stop' && ! $doc['published'])
+        if ( $this->unpublishedAction == 'stop' && ! $doc->get('published'))
         {
             return TRUE;
         }
-        if ( $this->notInMenuAction == 'stop' && $doc['hidemenu'] )
+        if ( $this->notInMenuAction == 'stop' && $doc->get('hidemenu') )
         {
             return TRUE;
         }
@@ -438,8 +274,11 @@ class Navigator
         {
             return -1;
         }
-        $currentDoc = $this->modx->getDocument( $id, 'parent' );
-        return $currentDoc['parent'];
+
+        $q = $this->modx->newQuery(modResource::class, $id);
+        $q->select('parent');
+        $parentId = $this->modx->getValue($q->prepare());
+        return $parentId;
     }
 
     private function GetFirstChildId( $id )
@@ -450,18 +289,18 @@ class Navigator
         $firstChildId = -1;
 
         // Get the children
-        $children = $this->modx->getDocumentChildren( $id, 1, '0', $fields='id, menuindex' );
+        $q = $this->modx->newQuery(modResource::class, ['parent' => $id, 'published' => true, 'deleted' => false]);
+        $q->select('id');
+        $q->sortby('menuindex','ASC');
+        $q->sortby('id','ASC');
+        $q->limit(1);
 
-        // Calculate the number of children
-        $nChildren = count( $children );
+        $child = $this->modx->getObject(modResource::class, $q);
 
-        if ( $nChildren > 0 )
+        if ($child)
         {
-            // Sort the children by menuindex
-            usort( $children, array( 'Navigator', 'SortDocs' ) );
-
             // Get the id of the first child
-            $firstChildId = $children[0]['id'];
+            $firstChildId = $child->get('id');
 
             return $firstChildId;
         }
@@ -478,18 +317,18 @@ class Navigator
         $lastChildId = -1;
 
         // Get the children
-        $children = $this->modx->getDocumentChildren( $id, 1, '0', $fields='id, menuindex' );
+        $q = $this->modx->newQuery(modResource::class, ['parent' => $id, 'published' => true, 'deleted' => false]);
+        $q->select('id');
+        $q->sortby('menuindex','DESC');
+        $q->sortby('id','DESC');
+        $q->limit(1);
 
-        // Calculate the number of children
-        $nChildren = count( $children );
+        $child = $this->modx->getObject(modResource::class, $q);
 
-        if ( $nChildren > 0 )
+        if ($child)
         {
-            // Sort the children by menuindex
-            usort( $children, array( 'Navigator', 'SortDocs' ) );
-
             // Get the id of the last child
-            $lastChildId = $children[$nChildren-1]['id'];
+            $lastChildId = $child->get('id');
 
             return $lastChildId;
         }
@@ -513,24 +352,23 @@ class Navigator
 
         // Get the parent document id
         $parentId = $this->GetParentId( $id );
-        // $currentDoc = $this->modx->getDocument( $id, 'parent' );
-        // $parentId = $currentDoc['parent'];
-
 
         // Get the immediate siblings (and the current document)
-        $siblings = $this->modx->getDocumentChildren( $parentId, 1, '0', $fields='id, menuindex' );
+        $q = $this->modx->newQuery(modResource::class, ['parent' => $parentId, 'published' => true, 'deleted' => false]);
+        $q->select('id');
+        $q->sortby('menuindex','ASC');
+        $q->sortby('id','ASC');
+
+        $siblings = $this->modx->getCollection(modResource::class, $q);
 
         // Calculate the number of siblings
         $nSiblings = count( $siblings ) - 1;
-
-        // Sort the children by menuindex
-        usort( $siblings, array( 'Navigator', 'SortDocs' ) );
 
         $currentIndex = -1;
         // Find the current document in the list of siblings
         foreach ( $siblings as  $index => $sibling )
         {
-            if ( $sibling['id'] == $id )
+            if ( $sibling->get('id') == $id )
             {
                 $currentIndex = $index;
                 break;
@@ -546,14 +384,14 @@ class Navigator
         case 'prev':
             if ( $currentIndex > 0 )
             {
-                $siblingId = $siblings[$currentIndex-1]['id'];
+                $siblingId = $siblings[$currentIndex-1]->get('id');
                 return $siblingId;
             }
             break;
         case 'next':
             if ( $currentIndex < $nSiblings )
             {
-                $siblingId = $siblings[$currentIndex+1]['id'];
+                $siblingId = $siblings[$currentIndex+1]->get('id');
                 return $siblingId;
             }
             break;
@@ -678,7 +516,6 @@ class Navigator
 
         return -1;
     }
-
 
 }
 ?>

@@ -22,28 +22,16 @@ in that it has the ability to transcend levels of the menu system.
 It doesn't attempt to provide the 'Jump' facility of the PrevJumpNext snippet.
 
 ===================================================================
-Installation
-===================================================================
-
-1. Copy the navigator folder into assets/snippets/
-2. In modx, go to Resources->Manage Resources->Snippets.
-3. Create a new snippet and enter the following details:
-    Snippet Name: Navigator
-    Description: <strong>0.1</strong> Enables navigation to related pages (prev, next, up)
-4. Copy the contents of navigator.snippet.php into the Snippet Code box and save the snippet.
-
-===================================================================
 Usage:
 ===================================================================
 
 To use this snippet you'll have to provide a template for the information you want
 to display about the related page.
 Within the template you can use:
-* modx document variable placeholders [+id+], [+pagetitle+], [+description+], etc...
-* template variable placeholders [+mytv+]
+* modx document variable placeholders [[+id]], [[+pagetitle]], [[+description]], etc...
 * Navigator placeholders
 
-Currently, the only navigator placeholder available is  [+nav.rel+], which returns the relationship with
+Currently, the only navigator placeholder available is  [[+nav.rel]], which returns the relationship with
 the document: 'next', 'prev', or 'up'. See the &rel input parameter.
 
 ===================================================================
@@ -51,14 +39,14 @@ Example templates and snippet calls:
 ===================================================================
 
 Provide links to related pages using the link element:
-LinkChunk: <link rel="[+nav.rel+]" type="[+contentType+]" href="[(site_url)][~[+id+]~]"></link>
+LinkChunk: <link rel="[[+nav.rel]]" href="[[~[[+id]]]]"></link>
 [[Navigator? &rel=`prev` &template=`LinkChunk`]]
-[[Navigator? &rel=`up` &template=`LinkChunk `]]
-[[Navigator? &rel=`next` &template=`LinkChunk `]]
+[[Navigator? &rel=`up` &template=`LinkChunk`]]
+[[Navigator? &rel=`next` &template=`LinkChunk`]]
 
 Provide links to related pages using a hyperlink:
-PrevChunk: <a class="navlink" rel="[+nav.rel+]" type="[+contentType+]" href="[(site_url)][~[+id+]~]">Prev</a>
-[[Navigator? &rel=`prev` &template=`PrevChunk `]]
+PrevChunk: <a class="navlink" rel="[[+nav.rel]]" href="[[~[[+id]]]]">Prev</a>
+[[Navigator? &rel=`prev` &template=`PrevChunk`]]
 
 ======================================================
 Configuration Settings
@@ -103,7 +91,7 @@ Default: 'skip'
 
 &template[string]
 A template for the output
-Use [~NL.rel~] to return the type of link (prev, next, parent)
+Use [[+nav.rel]] to return the type of link (prev, next, parent)
 Default: ''
 
 ===================================================================
@@ -124,18 +112,28 @@ This snippet doesn't currently do anything about phx.
 The snippet...
 ===================================================================
 */
-require_once($modx->config['base_path'] . 'assets/snippets/navigator/navigator.php');
+use Navigator\Navigator;
 
-$navigator = new Navigator( array(
-   'rel' => $rel
-   , 'stopIds' => $stopIds
-   , 'offIds' => $offIds
-   , 'transcend' => $transcend
-   , 'weblinkAction' => $weblinkAction
-   , 'unpublishedAction' => $unpublishedAction
-   , 'notInMenuAction' => $notInMenuAction
-   , 'template' => $template
-) );
+try {
+    $navigator = new Navigator($modx, [
+        'rel' => $rel
+        ,'stopIds' => $stopIds
+        ,'offIds' => $offIds
+        ,'transcend' => $transcend
+        ,'weblinkAction' => $weblinkAction
+        ,'unpublishedAction' => $unpublishedAction
+        ,'notInMenuAction' => $notInMenuAction
+        ,'template' => $template
+     ]);
 
-return $navigator->Calculate( );
-?>
+     if (!($navigator instanceof Navigator)){
+        $modx->log(xPDO::LOG_LEVEL_ERROR, "Instance of Navigator couldn't be created");
+        return '';
+     }
+
+     return $navigator->Calculate();
+}
+catch (\Throwable $t) {
+    $modx->log(xPDO::LOG_LEVEL_ERROR, $t->getMessage());
+    return '';
+}
