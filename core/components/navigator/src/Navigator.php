@@ -12,6 +12,7 @@
 namespace Navigator;
 
 use MODX\Revolution\modResource;
+use MODX\Revolution\modContentType;
 
 class Navigator
 {
@@ -170,7 +171,11 @@ class Navigator
                 return '<!--navigator:4-->';
             }
 
-            $doc = $this->modx->getObject(modResource::class, $id);
+            $q = $this->modx->newQuery(modResource::class, $id);
+            $q->leftJoin(modContentType::class, 'ContentType');
+            $q->select($this->modx->getSelectColumns(modResource::class, 'modResource'));
+            $q->select($this->modx->getSelectColumns(modContentType::class, 'ContentType', 'ct_', ['mime_type']));
+            $doc = $this->modx->getObject(modResource::class, $q);
 
             if ( $this->IsStopId( $id, $doc ) )
             {
@@ -203,7 +208,7 @@ class Navigator
         if (!$doc){
             return '<!--navigator:7-->';
         }
-        $fields = $doc->toArray();
+        $fields = $doc->toArray('', false, true);
         $fields['nav.rel'] = $this->rel;
 
         return $this->modx->getChunk($this->templateSource, $fields);
